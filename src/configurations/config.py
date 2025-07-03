@@ -1,6 +1,8 @@
 import logging
 from pathlib import Path
 
+# --- Percorsi Base ---
+
 PRJ_ROOT = Path(__file__).parent.parent.parent
 DATA_DIR = PRJ_ROOT / "data"
 DB_DIR = PRJ_ROOT / "database.db"
