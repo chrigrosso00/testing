@@ -1,0 +1,205 @@
+# Documentazione Architetturale - API Dati di Pesca
+
+## Panoramica del Progetto
+
+Il progetto implementa un'API REST per l'esportazione e la visualizzazione di dati relativi al settore della pesca in Italia. Il sistema gestisce l'importazione di dati da file CSV, il calcolo di serie derivate e l'esposizione dei dati tramite endpoint REST.
+
+## Decisioni Architetturali
+
+### 1. **Architettura Modulare**
+
+**Scelta**: Il progetto è organizzato in moduli distinti (`api/`, `database/`, `configurations/`, `logging/`, `serie_calcolate/`, `generate_plots/`, `scripts/`).
+
+**Motivazioni**:
+- **Separazione delle responsabilità**: Ogni modulo ha un compito specifico e ben definito
+- **Manutenibilità**: Le modifiche a una funzionalità non impattano altre parti del sistema
+- **Testabilità**: I singoli moduli possono essere testati indipendentemente
+- **Scalabilità**: Nuove funzionalità possono essere aggiunte senza modificare l'architettura esistente
+
+### 2. **Framework FastAPI**
+
+**Scelta**: Utilizzo di FastAPI per l'implementazione dell'API REST.
+
+**Motivazioni**:
+- **Performance**: FastAPI è uno dei framework Python più veloci grazie al supporto asincrono
+- **Documentazione automatica**: Genera automaticamente documentazione OpenAPI/Swagger
+- **Type hints**: Supporto nativo per i type hints Python, migliorando la qualità del codice
+- **Validazione automatica**: Validazione automatica dei parametri di input
+- **Semplicità**: Sintassi intuitiva e facile da apprendere
+
+### 3. **Database SQLite**
+
+**Scelta**: Utilizzo di SQLite come database di archiviazione.
+
+**Motivazioni**:
+- **Semplicità di deployment**: Non richiede un server database separato
+- **Zero configurazione**: Database embedded che non necessita di installazione
+- **Sufficiente per il volume di dati**: Adatto per dataset di dimensioni moderate
+- **Portabilità**: Il database è un singolo file facilmente trasferibile
+- **Backup semplificato**: Il backup consiste nella copia di un singolo file
+
+### 4. **Gestione della Configurazione Centralizzata**
+
+**Scelta**: Tutte le configurazioni sono centralizzate nel modulo `config.py`.
+
+**Motivazioni**:
+- **Principio DRY**: Evita la duplicazione di valori di configurazione
+- **Facilità di manutenzione**: Un solo punto dove modificare parametri di configurazione
+- **Consistenza**: Garantisce che tutti i moduli utilizzino gli stessi nomi di tabelle/colonne
+- **Flessibilità**: Facile modificare configurazioni senza toccare la logica di business
+
+### 5. **Logging Strutturato**
+
+**Scelta**: Implementazione di un sistema di logging centralizzato con diversi livelli.
+
+**Motivazioni**:
+- **Debugging**: Facilita l'identificazione e la risoluzione di problemi
+- **Monitoraggio**: Permette di monitorare l'utilizzo e le performance del sistema
+- **Audit**: Traccia le operazioni eseguite sul database
+- **Centralizzazione**: Un unico punto di configurazione per tutto il logging
+
+### 6. **Separazione tra Dati Originali e Serie Calcolate**
+
+**Scelta**: Distinzione netta tra endpoint per tabelle originali (`/tabelle_originali`) e serie calcolate (`/serie-calcolate`).
+
+**Motivazioni**:
+- **Chiarezza semantica**: L'utente comprende immediatamente il tipo di dato richiesto
+- **Versioning**: Possibilità di evolvere separatamente le due tipologie di dati
+- **Organizzazione**: Migliore organizzazione nella documentazione API
+- **Responsabilità**: Diversi team possono lavorare su diverse tipologie di endpoint
+
+### 7. **Pattern ETL (Extract, Transform, Load)**
+
+**Scelta**: Implementazione di un processo ETL strutturato con script separati.
+
+**Motivazioni**:
+- **Processo standardizzato**: Seguire un pattern consolidato per l'elaborazione dati
+- **Riproducibilità**: Il processo può essere eseguito in modo consistente
+- **Debugging**: Ogni fase può essere testata e debuggata separatamente
+- **Scalabilità**: Facile aggiungere nuove trasformazioni al processo
+
+### 8. **Interpolazione per Dati Mancanti**
+
+**Scelta**: Utilizzo dell'interpolazione lineare per gestire i valori mancanti.
+
+**Motivazioni**:
+- **Continuità dei dati**: Mantiene la coerenza delle serie temporali
+- **Approccio conservativo**: L'interpolazione lineare è un metodo semplice e non invasivo
+- **Tracciabilità**: Tutti i valori interpolati vengono registrati nei log
+- **Trasparenza**: Il processo è documentato e reversibile
+
+### 9. **Gestione degli Errori Strutturata**
+
+**Scelta**: Implementazione di gestione degli errori con codici HTTP appropriati e logging dettagliato.
+
+**Motivazioni**:
+- **User Experience**: Fornisce feedback chiari agli utenti dell'API
+- **Sicurezza**: Evita di esporre dettagli interni del sistema
+- **Debugging**: Logging dettagliato per gli sviluppatori
+- **Standard REST**: Rispetta le convenzioni HTTP/REST
+
+### 10. **Utilizzo di Pandas per Manipolazione Dati**
+
+**Scelta**: Pandas per la lettura CSV e manipolazione dei dati.
+
+**Motivazioni**:
+- **Efficienza**: Ottimizzato per operazioni su grandi dataset
+- **Funzionalità ricche**: Ampie capacità di manipolazione e analisi dati
+- **Integrazione**: Ottima integrazione con SQLite e Plotly
+- **Ecosistema**: Standard de facto per data science in Python
+
+### 11. **Parametri di Filtro Opzionali**
+
+**Scelta**: Implementazione di filtri per anno (`da_anno`, `a_anno`) come parametri opzionali.
+
+**Motivazioni**:
+- **Flessibilità**: Gli utenti possono recuperare tutti i dati o solo subset specifici
+- **Performance**: Riduce la quantità di dati trasferiti quando non necessario
+- **Usabilità**: Interfaccia intuitiva per filtrare per range temporali
+- **Compatibilità**: Endpoint funzionano sia con che senza parametri
+
+### 12. **Validazione dei Parametri**
+
+**Scelta**: Validazione esplicita dei parametri di input (es. `a_anno >= da_anno`).
+
+**Motivazioni**:
+- **Robustezza**: Previene errori di utilizzo dell'API
+- **Feedback immediato**: Errori chiari invece di risultati inattesi
+- **Integrità dei dati**: Garantisce che le query abbiano senso logico
+- **Sicurezza**: Previene query potenzialmente problematiche
+
+### 13. **Scripts di Orchestrazione**
+
+**Scelta**: Script separati per diverse fasi del processo (`run_import.py`, `run_serie_calcolate.py`, `run_plots.py`).
+
+**Motivazioni**:
+- **Modularità**: Ogni script ha una responsabilità specifica
+- **Flessibilità**: Possibilità di eseguire solo parti del processo
+- **Automazione**: Facile integrazione in pipeline CI/CD
+- **Debugging**: Isolamento di problemi in fasi specifiche
+
+### 14. **Gestione delle Macro-Aree**
+
+**Scelta**: Definizione di un mapping statico delle regioni italiane in macro-aree.
+
+**Motivazioni**:
+- **Standardizzazione**: Utilizzo di una classificazione geografica consolidata
+- **Prestazioni**: Evita join complessi o calcoli runtime
+- **Chiarezza**: Mapping esplicito e facilmente verificabile
+- **Stabilità**: Le macro-aree geografiche non cambiano frequentemente
+
+### 15. **Plotly per Visualizzazioni**
+
+**Scelta**: Utilizzo di Plotly per la generazione di grafici interattivi.
+
+**Motivazioni**:
+- **Interattività**: Grafici interattivi migliorano l'esperienza utente
+- **Qualità**: Grafici di alta qualità pronti per presentazioni
+- **Flessibilità**: Ampia gamma di tipi di visualizzazione
+- **Integrazione**: Ottima integrazione con Pandas
+
+## Benefici dell'Architettura Scelta
+
+### Manutenibilità
+- Codice organizzato in moduli con responsabilità chiare
+- Configurazione centralizzata facilita modifiche
+- Logging strutturato facilita debugging
+
+### Scalabilità
+- Architettura modulare supporta crescita del sistema
+- Database SQLite facilmente migrabile a soluzioni enterprise
+- API REST standard facilitano integrazione con altri sistemi
+
+### Robustezza
+- Gestione degli errori completa a tutti i livelli
+- Validazione dei dati in input
+- Logging dettagliato per monitoraggio
+
+### Usabilità
+- API auto-documentante con FastAPI
+- Endpoint intuitivi e ben organizzati
+- Visualizzazioni interattive per analisi dati
+
+## Possibili Evoluzioni Future
+
+### Performance
+- Migrazione a database più performanti (PostgreSQL, MySQL)
+- Implementazione di caching per query frequenti
+- Ottimizzazione delle query SQL
+
+### Funzionalità
+- Aggiunta di più algoritmi di interpolazione
+- Implementazione di export in formati diversi (Excel, JSON)
+- Aggiunta di endpoint per aggregazioni personalizzate
+
+### Sicurezza
+- Implementazione di autenticazione e autorizzazione
+- Rate limiting per proteggere da abusi
+- Validazione più rigorosa dei parametri di input
+
+### Monitoring
+- Integrazione con sistemi di monitoraggio (Prometheus, Grafana)
+- Health check endpoints
+- Metriche di performance dell'API
+
+Questa architettura fornisce una base solida per un sistema di analisi dati, bilanciando semplicità di implementazione con robustezza e possibilità di crescita futura.
