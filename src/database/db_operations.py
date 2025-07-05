@@ -24,78 +24,56 @@ def csv_to_sql():
     # Controlla se la cartella dei dati di origine esiste.
     if not data_source_dir.is_dir():
         # Se non esiste, registra un errore e termina la funzione.
-        logger.error(f"La cartella dei dati '{data_source_dir}' non esiste:")
+        logger.error(f"La cartella dei dati '{data_source_dir}' non esiste.")
         return
 
     # Assicura che la cartella genitore del file di database esista, creandola se necessario.
     database_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Inizializza la variabile di connessione a None.
-    conn = None
-    # Usa un blocco try...finally per garantire che la connessione al database venga sempre chiusa.
     try:
-        # Stabilisce una connessione con il file di database SQLite.
-        conn = sqlite3.connect(database_file_path)
-        logger.info(f"Connessione al database '{database_file_path}' stabilita")
+        # Utilizza un context manager 'with' per la connessione al database.
+        # Questo garantisce che la connessione venga chiusa automaticamente alla fine del blocco,
+        # sia in caso di successo che di errore.
+        with sqlite3.connect(database_file_path) as conn:
+            logger.info(f"Connessione al database '{database_file_path}' stabilita.")
 
-        # Cerca tutti i file con estensione .csv nella cartella dei dati.
-        csv_files = list(data_source_dir.glob("*.csv"))
+            csv_files = list(data_source_dir.glob("*.csv"))
 
-        # Se non vengono trovati file CSV, registra un avviso e termina la funzione.
-        if not csv_files:
-            logger.warning(f"Nessun file CSV trovato nella cartella '{data_source_dir}'")
-            return
+            if not csv_files:
+                logger.warning(f"Nessun file CSV trovato nella cartella '{data_source_dir}'.")
+                return
 
-        # Registra il numero di file CSV trovati.
-        logger.info(f"Trovati {len(csv_files)} file CSV nella cartella '{data_source_dir}")
+            logger.info(f"Trovati {len(csv_files)} file CSV nella cartella '{data_source_dir}'.")
 
-        # Definisce una lista di nomi di tabella validi presi dalla configurazione.
-        # Questi sono i nomi che ci aspettiamo di trovare come nomi di file (senza estensione).
-        table_names = [
-            config.tabella_andamento_occupazione_pesca,
-            config.tabella_importanza_economica_pesca,
-            config.tabella_produttivita_pesca
-        ]
+            table_names = [
+                config.tabella_andamento_occupazione_pesca,
+                config.tabella_importanza_economica_pesca,
+                config.tabella_produttivita_pesca
+            ]
 
-        # Itera su ogni file CSV trovato.
-        for csv_file_path in csv_files:
-            # Estrae il nome del file senza l'estensione (es. "file.csv" -> "file").
-            file_stem = csv_file_path.stem
+            for csv_file_path in csv_files:
+                file_stem = csv_file_path.stem
 
-            # Inizializza il nome della tabella a None.
-            table_name = None
+                if file_stem not in table_names:
+                    logger.warning(
+                        f"Il nome del file CSV '{csv_file_path.name}' (stem: '{file_stem}') non corrisponde a "
+                        f"nessun nome di tabella definito in config.py. File saltato.")
+                    continue
 
-            # Controlla se il nome del file (senza estensione) corrisponde a uno dei nomi di tabella validi.
-            if file_stem in table_names:
-                # Se c'è una corrispondenza, assegna il nome alla variabile table_name.
                 table_name = file_stem
-            else:
-                # Altrimenti, registra un avviso e salta al prossimo file nel ciclo.
-                logger.warning(
-                    f"Il nome del file CSV '{csv_file_path.name}' (stem: '{file_stem}') non corrisponde a nessun nome di tabella definito in config.py. File saltato.")
-                continue
+                logger.info(f"Processando il file '{csv_file_path.name}' per la tabella '{table_name}'...")
 
-            # Registra quale file si sta processando e in quale tabella verrà inserito.
-            logger.info(f"Processando il file '{csv_file_path.name}' per la tabella '{table_name}' ...")
+                try:
+                    df = pd.read_csv(csv_file_path, delimiter=";")
+                    # if_exists="replace" elimina e ricrea la tabella se esiste già.
+                    # index=False evita di scrivere l'indice del DataFrame nel database.
+                    df.to_sql(table_name, conn, if_exists="replace", index=False)
+                    logger.info(f"Dati da '{csv_file_path.name}' importati con successo nella tabella '{table_name}'.")
+                except Exception as e:
+                    logger.error(f"Errore durante l'importazione del file '{csv_file_path.name}': {e}", exc_info=True)
 
-            # Blocco try...except per gestire errori specifici durante la lettura e l'importazione del singolo file.
-            try:
-                # Legge il file CSV in un DataFrame di pandas, specificando che il delimitatore è il punto e virgola.
-                df = pd.read_csv(csv_file_path, delimiter=";")
-                # Scrive il contenuto del DataFrame nella tabella SQL corrispondente.
-                # if_exists="replace" significa che se la tabella esiste già, verrà eliminata e ricreata.
-                # index=False evita di scrivere l'indice del DataFrame come colonna nel database.
-                df.to_sql(table_name, conn, if_exists="replace", index=False)
-                logger.info(f"Dati da {csv_file_path.name} importati con successo nella tabella {table_name}")
-            except Exception as e:
-                # Se si verifica un errore durante l'importazione, lo registra.
-                logger.error(f"Errore durante l'importazione del file {csv_file_path.name}: {e}", exc_info=True)
+            logger.info("Processo di importazione completato.")
 
-        # Registra il completamento dell'intero processo di importazione.
-        logger.info(f"Processo di importazione completato")
-
-    # Il blocco 'finally' viene eseguito sempre, sia che si verifichi un'eccezione o meno.
-    finally:
-        # Se la connessione al database è stata aperta, la chiude per rilasciare le risorse.
-        if conn:
-            conn.close()
+    except sqlite3.Error as e:
+        # Gestisce eventuali errori a livello di database (es. file corrotto, permessi mancanti).
+        logger.error(f"Errore del database durante la connessione a '{database_file_path}': {e}", exc_info=True)

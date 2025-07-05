@@ -30,7 +30,7 @@ app.include_router(series_routes.router)
 
 # Definisce un endpoint per la radice ("/") dell'API.
 # 'tags' aiuta a raggruppare gli endpoint nella documentazione.
-@app.get("/", tags=["root"])
+@app.get("/")
 async def read_root():
     """
     Endpoint di benvenuto dell'API.
@@ -42,11 +42,11 @@ async def read_root():
         "message": "Benvenuto nell'API di dati di esca, consulta /docs per la interrogare il database ed esportare i dati"}
 
 
-# Questo blocco di codice viene eseguito solo se lo script è lanciato direttamente (es. 'python main.py').
+# Questo blocco di codice viene eseguito solo se lo script è lanciato direttamente (es. 'python run_api.py').
 # Non viene eseguito se il modulo è importato da un altro script.
 if __name__ == "__main__":
     # Avvia il server uvicorn per servire l'applicazione FastAPI.
-    # 'host="0.0.0.0"' rende il server accessibile da altre macchine sulla rete.
+    # 'host="127.0.0.1"' rende il server accessibile alla macchina sulla rete.
     # 'port=8000' imposta la porta su cui il server ascolterà.
     # 'log_level' imposta il livello di verbosità dei log del server, preso dalla configurazione.
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level=config.log_level)
+    uvicorn.run(app, host="127.0.0.1", port=8000, log_level=config.log_level)
